@@ -4,13 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Дія</title>
+    <!-- PWA настройки для Android и iOS -->
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Дія">
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="#ffffff">
+    <!-- Регистрация service worker -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js');
@@ -37,7 +39,8 @@
             const code = document.getElementById('code').value.trim();
             if (!code) return alert("Введіть код!");
             try {
-                const res = await fetch(`/get_data?code=${code}`);
+                // Абсолютный URL к API на PythonAnywhere (замени на свой, если другой)
+                const res = await fetch(`https://192837465Ns.pythonanywhere.com/get_data?code=${code}`);
                 const data = await res.json();
                 let html = '';
                 if (data.fio && data.fio.includes("ЗАВЕРШЕНО")) {
@@ -46,11 +49,11 @@
                     html = `<h2>Ваші дані</h2>
                             <p><strong>ПІБ:</strong> ${data.fio || ''}</p>
                             <p><strong>Дата народження:</strong> ${data.birthdate || ''}</p>
-                            ${data.photo_url ? `<img src="${data.photo_url}" alt="Фото">` : ''}`;
+                            ${data.photo_url ? `<img src="https://192837465Ns.pythonanywhere.com${data.photo_url}" alt="Фото">` : ''}`;
                 }
                 document.getElementById('result').innerHTML = html;
             } catch (e) {
-                alert("Невірний код або термін дії закінчився");
+                alert("Невірний код або помилка з'єднання");
             }
         }
     </script>
