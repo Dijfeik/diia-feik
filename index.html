@@ -1,35 +1,108 @@
-<script>
-    async function loadData() {
-        const code = document.getElementById('code').value.trim();
-        if (!code) {
-            alert("Введіть код!");
-            return;
-        }
-        try {
-            console.log("Запит к API с кодом:", code);
-            const res = await fetch(`https://192837465Ns.pythonanywhere.com/get_data?code=${code}`);
-            if (!res.ok) {
-                throw new Error(`HTTP ошибка: ${res.status}`);
-            }
-            const data = await res.json();
-            console.log("Ответ от API:", data);
-            let html = '';
-            if (data.fio && data.fio.includes("ЗАВЕРШЕНО")) {
-                html = `<p style="color:red;font-size:24px;">${data.fio}</p>`;
-            } else {
-                html = `<h2>Ваші дані</h2>
-                        <p><strong>ПІБ:</strong> ${data.fio || ''}</p>
-                        <p><strong>Дата народження:</strong> ${data.birthdate || ''}</p>
-                        ${data.photo_url ? `<img src="https://192837465Ns.pythonanywhere.com${data.photo_url}" alt="Фото" style="max-width:200px;border-radius:12px;margin:20px 0;">` : ''}`;
-            }
-            document.getElementById('result').innerHTML = html;
-        } catch (e) {
-            console.error("Ошибка:", e);
-            alert("Невірний код або помилка з'єднання");
-        }
-    }
+from flask import Flask, send_from_directory, request
+from flask import render_template_string
+from flask_cors import CORS  # Добавлено для CORS
+import aiosqlite
+import asyncio
+import datetime
+import os
 
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js');
-    }
-</script>
+app = Flask(__name__)
+CORS(app)  # Разрешаем запросы с Netlify
+
+DB_FILE = "users.db"
+PHOTOS_DIR = "photos"
+
+os.makedirs(PHOTOS_DIR, exist_ok=True)
+
+@app.route("/photos/<filename>")
+def photos(filename):
+    return send_from_directory(PHOTOS_DIR, filename)
+
+@app.route("/get_data")
+async def get_data():
+    code = request.args.get("code")
+    if not code:
+        return {"fio": "Невірний код", "birthdate": "", "photo_url": ""}
+
+    async with aiosqlite.connect(DB_FILE) as db:
+        async with db.execute("SELECT fio, birthdate, photo_path, expiry_time, active FROM users WHERE code=?", (code,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return {"fio": "Невірний код або термін дії закінчився", "birthdate": "", "photo_url": ""}
+
+            fio, birthdate, photo_path, expiry, active = row
+
+            if active == 0 or (expiry and datetime.datetime.now().timestamp() > expiry):
+                return {"fio": "ПЕРІОД ПОДПИСКИ ЗАВЕРШЕНО", "birthdate": "", "photo_url": ""}
+
+            photo_url = f"/photos/{os.path.basename(photo_path)}" if photo_path else ""
+            return {"fio": fio, "birthdate": birthdate, "photo_url": photo_url}
+
+@app.route("/")
+def main_page():
+    html = """
+    <!DOCTYPE html>
+    <html lang="uk">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Дія</title>
+        <link rel="manifest" href="/manifest.json">
+        <link rel="apple-touch-icon" sizes="192x192" href="/icon-192x192.png">
+        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512x512.png">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Дія">
+        <meta name="theme-color" content="#000000">
+        <script>
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js');
+            }
+        </script>
+        <style>
+            body {font-family: Arial, sans-serif; text-align: center; background: #fff; color: #000; padding: 20px; margin: 0;}
+            h1 {font-size: 32px;}
+            p {font-size: 18px; line-height: 1.6;}
+            input {font-size: 18px; padding: 12px; width: 80%; max-width: 400px; margin: 20px auto; background: #f0f0f0; border: 1px solid #000; color: #000; border-radius: 8px;}
+            button {font-size: 18px; padding: 12px 30px; background: #ffd700; color: #000; border: none; border-radius: 8px; cursor: pointer;}
+            .expired {color: red; font-size: 24px;}
+        </style>
+    </head>
+    <body>
+        <h1>Chrome</h1>
+        <p>1) натисніть на три точки в правому верхньому куту</p>
+        <p>2) натисніть на "Додати на головний екран"</p>
+        <h1>Аналог Дія</h1>
+        <p>Введіть код доступу з бота:</p>
+        <input type="text" id="code" placeholder="Наприклад: 97Vc82ca">
+        <button onclick="loadData()">Увійти</button>
+        <div id="result"></div>
+        <script>
+            async function loadData() {
+                const code = document.getElementById('code').value.trim();
+                if (!code) return alert("Введіть код!");
+                try {
+                    const res = await fetch(`/get_data?code=${code}`);
+                    const data = await res.json();
+                    let html = '';
+                    if (data.fio && data.fio.includes("ЗАВЕРШЕНО")) {
+                        html = `<p class="expired">${data.fio}</p>`;
+                    } else {
+                        html = `<h2>Ваші дані</h2>
+                                <p><strong>ПІБ:</strong> ${data.fio || ''}</p>
+                                <p><strong>Дата народження:</strong> ${data.birthdate || ''}</p>
+                                ${data.photo_url ? `<img src="${data.photo_url}" alt="Фото" style="max-width:200px;border-radius:12px;">` : ''}`;
+                    }
+                    document.getElementById('result').innerHTML = html;
+                } catch (e) {
+                    alert("Невірний код або термін дії закінчився");
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
