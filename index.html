@@ -49,7 +49,7 @@
                     html = `<h2>Ваші дані</h2>
                             <p><strong>ПІБ:</strong> ${data.fio || ''}</p>
                             <p><strong>Дата народження:</strong> ${data.birthdate || ''}</p>
-                            ${data.photo_url ? `<img src="https://192837465Ns.pythonanywhere.com${data.photo_url}" alt="Фото">` : ''}`;
+                            ${data.photo_url ? `<img src="https://192837465Ns.pythonanywhere.com${data.photo_url}" alt="Фото" style="max-width:200px;border-radius:12px;margin:20px 0;">` : ''}
                 }
                 document.getElementById('result').innerHTML = html;
             } catch (e) {
